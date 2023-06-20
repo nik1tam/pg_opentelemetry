@@ -194,8 +194,7 @@ if(WITH_OTLP_GRPC)
            ${METRICS_SERVICE_GRPC_PB_H_FILE}
            ${METRICS_SERVICE_GRPC_PB_CPP_FILE}
     COMMAND
-      ${PROTOBUF_PROTOC_EXECUTABLE} ARGS "--experimental_allow_proto3_optional"
-      "--proto_path=${PROTO_PATH}" ${PROTOBUF_INCLUDE_FLAGS}
+      ${PROTOBUF_PROTOC_EXECUTABLE} ARGS "--proto_path=${PROTO_PATH}" ${PROTOBUF_INCLUDE_FLAGS}
       "--cpp_out=${GENERATED_PROTOBUF_PATH}"
       "--grpc_out=generate_mock_code=true:${GENERATED_PROTOBUF_PATH}"
       --plugin=protoc-gen-grpc="${gRPC_CPP_PLUGIN_EXECUTABLE}" ${COMMON_PROTO}
@@ -220,8 +219,7 @@ else()
            ${METRICS_SERVICE_PB_H_FILE}
            ${METRICS_SERVICE_PB_CPP_FILE}
     COMMAND
-      ${PROTOBUF_PROTOC_EXECUTABLE} ARGS "--experimental_allow_proto3_optional"
-      "--proto_path=${PROTO_PATH}" ${PROTOBUF_INCLUDE_FLAGS}
+      ${PROTOBUF_PROTOC_EXECUTABLE} ARGS "--proto_path=${PROTO_PATH}" ${PROTOBUF_INCLUDE_FLAGS}
       "--cpp_out=${GENERATED_PROTOBUF_PATH}" ${COMMON_PROTO} ${RESOURCE_PROTO}
       ${TRACE_PROTO} ${LOGS_PROTO} ${METRICS_PROTO} ${TRACE_SERVICE_PROTO}
       ${LOGS_SERVICE_PROTO} ${METRICS_SERVICE_PROTO})
