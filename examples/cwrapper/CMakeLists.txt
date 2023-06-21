@@ -10,7 +10,7 @@ include_directories(
 
 #add_executable(cwrapper cwrapper.cc)
 
-add_library(cwrapper cwrapper.h cwrapper.cc)
+add_library(cwrapper storedspan.h storedspan.cc cwrapper.h cwrapper.cc)
 #set_target_version(cwrapper)
 
 target_link_libraries(cwrapper PUBLIC ${CMAKE_THREAD_LIBS_INIT}

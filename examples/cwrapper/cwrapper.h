@@ -5,13 +5,13 @@
 extern "C" {
 #endif    
 
-void cWrapper_InitTracer(const char *url, const char *bin_mode, const char *deb_mode);
+int cWrapper_InitTracer(const char *url, const char *bin_mode, const char *deb_mode);
 
-void cWrapper_StartSpan(const char *span_name);
+int cWrapper_StartSpan(const char *q_id, const char *q_lvl, const char *q_txt);
 
-void cWrapper_EndSpan(const char *span_name);
+int cWrapper_EndSpan(const char *span_name);
 
-void cWrapper_CleanupTracer(void);
+int cWrapper_CleanupTracer(void);
 
 #ifdef __cplusplus
 }

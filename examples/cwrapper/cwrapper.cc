@@ -15,83 +15,9 @@
 #include "opentelemetry/sdk/trace/tracer_provider.h"
 
 #include "cwrapper.h"
+#include "storedspan.h"
 
-typedef struct span_node_type {
-    std::string span_name;
-    opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> span;
-    opentelemetry::v1::trace::Scope scope{span};
-    span_node_type *next;
-} span_node_type;
-
-//static std::list<span_node_type> span_list;
-static span_node_type *span_list = NULL;
-
-static void span_list_add(span_node_type *el)
-{
-  el->next = span_list;
-  span_list = el;
-}
-
-static void span_list_remove(span_node_type *el)
-{
-  span_node_type *node = span_list;
-  span_node_type *prev_node = span_list;
-  std::string s = el->span_name;
-  while(node != NULL)
-  {
-    if(node->span_name == s)
-    {
-      if(node == span_list)
-        span_list = node->next;
-      else
-        prev_node->next = node->next;
-
-      free(node);
-    }
-//      break;
-    
-    prev_node = node;
-    node = node->next;
-  }
-
-/*
-  if(node != NULL )
-  {
-    if(node == span_list)
-      span_list = node->next;
-    else
-      prev_node->next = node->next;
-
-    free(node);
-  }
-*/
-}
-
-static span_node_type * span_list_search(std::string span_name)
-{
-  span_node_type *node = span_list;
-  while(node != NULL)
-  {
-    if(node->span_name == span_name)
-      break;
-    
-    node = node->next;
-  }
-  return node;
-}
-
-static void span_list_cleanup()
-{
-  span_node_type *node = span_list;
-  span_node_type *next_node = span_list;
-  while(node != NULL)
-  {
-    next_node = node->next;
-    free(node);
-    node = next_node;
-  }
-  span_list = NULL;
-}
+static std::list<StoredSpan> spanList;
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,8 +29,9 @@ extern "C" {
 
 // namespace internal_log = opentelemetry::sdk::common::internal_log;
 
-void cWrapper_InitTracer(const char *url, const char *bin_mode, const char *deb_mode)
+int cWrapper_InitTracer(const char *url, const char *bin_mode, const char *deb_mode)
 {
+//    std::list<span_node_type> slist;
     opentelemetry::exporter::otlp::OtlpHttpExporterOptions opts;
     opts.url = url;
     std::string debug = deb_mode;
@@ -123,46 +50,48 @@ void cWrapper_InitTracer(const char *url, const char *bin_mode, const char *deb_
       opentelemetry::sdk::trace::TracerProviderFactory::Create(std::move(processor));
     // Set the global trace provider
     opentelemetry::trace::Provider::SetTracerProvider(provider);
+    return 0;
 }
 
-void cWrapper_StartSpan(const char *span_name)
+int cWrapper_StartSpan(const char *q_count, const char *q_level, const char *q_text)
 {
-  span_node_type *span_node = new(span_node_type);
-  opentelemetry::v1::nostd::string_view sname = span_name;
+  opentelemetry::v1::nostd::string_view sname = q_text;
+  std::string strname = q_count;
   auto provider = opentelemetry::trace::Provider::GetTracerProvider();
-  span_node->span = provider->GetTracer("PostgreSQL", OPENTELEMETRY_SDK_VERSION)->StartSpan(sname);
-  span_node->scope = provider->GetTracer("PostgreSQL", OPENTELEMETRY_SDK_VERSION)->WithActiveSpan(span_node->span);
-  span_node->span_name = span_name;
+  opentelemetry::v1::nostd::shared_ptr<opentelemetry::v1::trace::Span> t_span;
+  opentelemetry::v1::trace::Scope t_scope{t_span};
+  StoredSpan s;
 
-  span_list_add(span_node);
-  //span_list.push_front(span_node);
+  t_span = provider->GetTracer("PostgreSQL", OPENTELEMETRY_SDK_VERSION)->StartSpan(sname);
+  s.setSpanName(strname);
+  s.setSpanPtr(t_span);
+  s.setQueryId(q_count);
+  s.setQueryLevel(q_level);
+  s.setQueryText(q_text);
+  auto scope = provider->GetTracer("PostgreSQL", OPENTELEMETRY_SDK_VERSION)->WithActiveSpan(t_span);
+  spanList.push_front(s);
+  return 0;
 }
 
-void cWrapper_EndSpan(const char *span_name)
+int cWrapper_EndSpan(const char *span_name)
 {
-  opentelemetry::nostd::shared_ptr<opentelemetry::trace::Span> span;
+  opentelemetry::v1::nostd::shared_ptr<opentelemetry::v1::trace::Span> span;
   std::string sname = span_name;
-  span_node_type *t_span = span_list_search(sname);
-
-  if(t_span != NULL)
+  int is_span_found = 1;
+  for(std::list<StoredSpan>::iterator it = spanList.begin(); it != spanList.end(); it++)
   {
-    t_span->span->End();
-    span_list_remove(t_span);
-  }
-/*
-  for(std::list<span_node_type>::iterator it = span_list.begin(); it != span_list.end(); it++)
-  {
-    if((it)->span_name == sname)
+    if((it)->getSpanName() == sname)
     {
-      (it)->span->End();
-      span_list.remove_if(*it);
+      span = (it)->getSpanPtr();
+      span->End();
+      is_span_found = 0;
       break;
     }
   }
-*/
+  return is_span_found;
 }
 
-void cWrapper_CleanupTracer(void)
+int cWrapper_CleanupTracer(void)
 {
   // We call ForceFlush to prevent to cancel running exportings, It's optional.
   opentelemetry::nostd::shared_ptr<opentelemetry::trace::TracerProvider> provider =
@@ -174,7 +103,7 @@ void cWrapper_CleanupTracer(void)
 
   std::shared_ptr<opentelemetry::trace::TracerProvider> none;
   opentelemetry::trace::Provider::SetTracerProvider(none);
-  span_list_cleanup();
+  return 0;
 }
 
 
