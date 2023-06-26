@@ -14,6 +14,15 @@
 // destroy and shutdown exporters.It's optional to users.
 #include "opentelemetry/sdk/trace/tracer_provider.h"
 
+#include "opentelemetry/sdk/version/version.h"
+/*
+#include "opentelemetry/exporters/ostream/span_exporter.h"
+#include "opentelemetry/exporters/ostream/span_exporter_factory.h"
+#include "opentelemetry/exporters/ostream/log_record_exporter.h"
+#include "opentelemetry/logs/provider.h"
+#include "opentelemetry/sdk/logs/logger_provider_factory.h"
+#include "opentelemetry/sdk/logs/simple_log_record_processor_factory.h"
+*/
 #include "cwrapper.h"
 #include "storedspan.h"
 
@@ -23,12 +32,44 @@ static std::list<StoredSpan> spanList;
 extern "C" {
 #endif
 
-// namespace trace     = opentelemetry::trace;
-// namespace trace_sdk = opentelemetry::sdk::trace;
-// namespace otlp      = opentelemetry::exporter::otlp;
+/*
+namespace trace     = opentelemetry::trace;
+namespace trace_sdk = opentelemetry::sdk::trace;
+namespace otlp      = opentelemetry::exporter::otlp;
 
-// namespace internal_log = opentelemetry::sdk::common::internal_log;
+namespace internal_log = opentelemetry::sdk::common::internal_log;
 
+namespace logs_api      = opentelemetry::logs;
+namespace logs_sdk      = opentelemetry::sdk::logs;
+namespace logs_exporter = opentelemetry::exporter::logs;
+
+namespace trace_api      = opentelemetry::trace;
+namespace trace_exporter = opentelemetry::exporter::trace;
+*/
+
+/* Only one provider allowed simultaneously. Logs switched off to enable HTTP */
+
+/*
+void InitLogger()
+{
+  // Create ostream log exporter instance
+  auto exporter =
+      std::unique_ptr<opentelemetry::sdk::logs::LogRecordExporter>(new opentelemetry::exporter::logs::OStreamLogRecordExporter);
+  auto processor = opentelemetry::sdk::logs::SimpleLogRecordProcessorFactory::Create(std::move(exporter));
+  std::shared_ptr<opentelemetry::logs::LoggerProvider> provider(
+      opentelemetry::sdk::logs::LoggerProviderFactory::Create(std::move(processor)));
+
+  // Set the global logger provider
+  opentelemetry::logs::Provider::SetLoggerProvider(provider);
+}
+
+void CleanupLogger()
+{
+  std::shared_ptr<opentelemetry::logs::LoggerProvider> none;
+  opentelemetry::logs::Provider::SetLoggerProvider(none);
+}
+*/
+/////////////
 int cWrapper_InitTracer(const char *url, const char *bin_mode, const char *deb_mode)
 {
 //    std::list<span_node_type> slist;
@@ -50,41 +91,62 @@ int cWrapper_InitTracer(const char *url, const char *bin_mode, const char *deb_m
       opentelemetry::sdk::trace::TracerProviderFactory::Create(std::move(processor));
     // Set the global trace provider
     opentelemetry::trace::Provider::SetTracerProvider(provider);
-    return 0;
+    // Create LOG exporter and provider
+    /*
+    auto log_exporter  = opentelemetry::exporter::trace::OStreamSpanExporterFactory::Create();
+    auto log_processor = opentelemetry::sdk::trace::SimpleSpanProcessorFactory::Create(std::move(log_exporter));
+    std::shared_ptr<opentelemetry::trace::TracerProvider> log_provider =
+      opentelemetry::sdk::trace::TracerProviderFactory::Create(std::move(log_processor));
+    opentelemetry::trace::Provider::SetTracerProvider(log_provider);
+    */
+    return ERRCODE_OK;
 }
 
-int cWrapper_StartSpan(const char *q_count, const char *q_level, const char *q_text)
+int cWrapper_StartSpan(const char *span_name) //*q_count, const char *q_level, const char *q_text)
 {
-  opentelemetry::v1::nostd::string_view sname = q_text;
+  bool check_segfault = true;
+  std::string spname = span_name;
+/*
   std::string strname = q_count;
+  std::string strlevel = q_level;
+  std::string strtext = q_text;
+*/
+
+  opentelemetry::v1::nostd::string_view sname = opentelemetry::v1::nostd::string_view(span_name); // q_text;
   auto provider = opentelemetry::trace::Provider::GetTracerProvider();
   opentelemetry::v1::nostd::shared_ptr<opentelemetry::v1::trace::Span> t_span;
-  opentelemetry::v1::trace::Scope t_scope{t_span};
   StoredSpan s;
 
   t_span = provider->GetTracer("PostgreSQL", OPENTELEMETRY_SDK_VERSION)->StartSpan(sname);
-  s.setSpanName(strname);
+  if(t_span)
+  {
+    opentelemetry::v1::trace::Scope t_scope{t_span};
+    auto scope = provider->GetTracer("PostgreSQL", OPENTELEMETRY_SDK_VERSION)->WithActiveSpan(t_span);
+  }
+  s.setSpanName(spname);
   s.setSpanPtr(t_span);
-  s.setQueryId(q_count);
-  s.setQueryLevel(q_level);
-  s.setQueryText(q_text);
-  auto scope = provider->GetTracer("PostgreSQL", OPENTELEMETRY_SDK_VERSION)->WithActiveSpan(t_span);
+/*
+  s.setQueryId(strname);
+  s.setQueryLevel(strlevel);
+  s.setQueryText(strtext);
+*/
   spanList.push_front(s);
-  return 0;
+  return ERRCODE_OK;
 }
 
 int cWrapper_EndSpan(const char *span_name)
 {
   opentelemetry::v1::nostd::shared_ptr<opentelemetry::v1::trace::Span> span;
   std::string sname = span_name;
-  int is_span_found = 1;
+  int is_span_found = ERRCODE_ERR;
   for(std::list<StoredSpan>::iterator it = spanList.begin(); it != spanList.end(); it++)
   {
     if((it)->getSpanName() == sname)
     {
       span = (it)->getSpanPtr();
       span->End();
-      is_span_found = 0;
+      spanList.erase(it);
+      is_span_found = ERRCODE_OK;
       break;
     }
   }
@@ -103,7 +165,7 @@ int cWrapper_CleanupTracer(void)
 
   std::shared_ptr<opentelemetry::trace::TracerProvider> none;
   opentelemetry::trace::Provider::SetTracerProvider(none);
-  return 0;
+  return ERRCODE_OK;
 }
 
 
