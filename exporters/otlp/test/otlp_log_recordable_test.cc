@@ -1,6 +1,8 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// #define ENABLE_LOGS_PREVIEW
+
 #ifdef ENABLE_LOGS_PREVIEW
 
 #  include <gtest/gtest.h>
@@ -115,6 +117,17 @@ TEST(OtlpLogRecordable, SetSingleAttribute)
   EXPECT_EQ(3, checked_attributes);
 }
 
+  enum ValueCase {
+    kStringValue = 1,
+    kBoolValue = 2,
+    kIntValue = 3,
+    kDoubleValue = 4,
+    kArrayValue = 5,
+    kKvlistValue = 6,
+    kBytesValue = 7,
+    VALUE_NOT_SET = 0,
+  };
+
 // Test non-int array types. Int array types are tested using templates (see IntAttributeTest)
 TEST(OtlpLogRecordable, SetArrayAttribute)
 {
@@ -139,15 +152,15 @@ TEST(OtlpLogRecordable, SetArrayAttribute)
   const opentelemetry::proto::common::v1::ArrayValue *string_values = nullptr;
   for (int i = 0; i < rec.log_record().attributes_size(); i++)
   {
-    if (rec.log_record().attributes(i).value().array_value().values(0).has_bool_value())
+    if (rec.log_record().attributes(i).value().array_value().values(0).value_case() == kBoolValue)
     {
       bool_values = &rec.log_record().attributes(i).value().array_value();
     }
-    else if (rec.log_record().attributes(i).value().array_value().values(0).has_double_value())
+    else if (rec.log_record().attributes(i).value().array_value().values(0).value_case() == kDoubleValue)
     {
       double_values = &rec.log_record().attributes(i).value().array_value();
     }
-    else if (rec.log_record().attributes(i).value().array_value().values(0).has_string_value())
+    else if (rec.log_record().attributes(i).value().array_value().values(0).value_case() == kStringValue)
     {
       string_values = &rec.log_record().attributes(i).value().array_value();
     }
